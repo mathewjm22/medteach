@@ -33,35 +33,52 @@ const App: React.FC = () => {
     setCaseText(e.target.value);
   };
 
+  const extractFinalDiagnosis = (text: string): string => {
+    const marker = "Final Diagnosis";
+    const idx = text.toLowerCase().lastIndexOf(marker.toLowerCase());
+    if (idx !== -1) {
+      return text.substring(idx + marker.length).replace(/^[:\-\s]+/, '').trim();
+    }
+    return '';
+  };
+
   const startCase = () => {
     if (!caseText.trim()) return;
 
-    // Use a robust split to separate the case from the solution
-    // Everything before "Final Diagnosis" is the case visible to students
-    const parts = caseText.split(/final diagnosis/i);
-    const textWithoutSolution = parts[0].trim();
+    // Separate student-facing case from the final diagnosis solution
+    const marker = "Final Diagnosis";
+    const idx = caseText.toLowerCase().lastIndexOf(marker.toLowerCase());
+    const studentText = idx !== -1 ? caseText.substring(0, idx).trim() : caseText.trim();
     
-    // Logical chunking: split by paragraphs, then sub-chunk if a paragraph is too long
-    const rawParagraphs = textWithoutSolution.split(/\n\s*\n/);
-    const resultChunks: string[] = [];
-
-    rawParagraphs.forEach(p => {
-      const cleanP = p.trim();
-      if (!cleanP) return;
-      
-      // If a paragraph is exceptionally long (e.g., > 6 sentences), break it up
-      const sentences = cleanP.match(/[^.!?]+[.!?]+(?:\s+|$)/g) || [cleanP];
-      if (sentences.length > 7) {
-        for (let i = 0; i < sentences.length; i += 5) {
-          resultChunks.push(sentences.slice(i, i + 5).join('').trim());
-        }
-      } else {
-        resultChunks.push(cleanP);
+    // Chunking logic: Split by paragraphs (double newlines)
+    let rawParagraphs = studentText.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+    
+    // If we only have one massive block, split it by sentence counts to ensure progressive disclosure
+    if (rawParagraphs.length <= 1) {
+      const allSentences = studentText.match(/[^.!?]+[.!?]+(?:\s+|$)/g) || [studentText];
+      rawParagraphs = [];
+      const chunkSize = 4; // Reveal 4 sentences at a time
+      for (let i = 0; i < allSentences.length; i += chunkSize) {
+        rawParagraphs.push(allSentences.slice(i, i + chunkSize).join('').trim());
       }
-    });
+    } else {
+      // Even if we have paragraphs, if any paragraph is too long, break it down further
+      const refinedChunks: string[] = [];
+      rawParagraphs.forEach(para => {
+        const sentences = para.match(/[^.!?]+[.!?]+(?:\s+|$)/g) || [para];
+        if (sentences.length > 8) {
+          for (let i = 0; i < sentences.length; i += 5) {
+            refinedChunks.push(sentences.slice(i, i + 5).join('').trim());
+          }
+        } else {
+          refinedChunks.push(para.trim());
+        }
+      });
+      rawParagraphs = refinedChunks;
+    }
 
-    setChunks(resultChunks);
-    setVisibleIndex(1);
+    setChunks(rawParagraphs);
+    setVisibleIndex(1); // Start by showing the first chunk
     setIsCaseLoaded(true);
     setReviewMode(false);
     setDifferentials([]);
@@ -75,6 +92,7 @@ const App: React.FC = () => {
   const nextParagraph = () => {
     if (visibleIndex < chunks.length) {
       setVisibleIndex(prev => prev + 1);
+      // Small delay to allow DOM to update before scrolling
       setTimeout(() => {
         if (scrollRef.current) {
           scrollRef.current.scrollTo({
@@ -82,8 +100,15 @@ const App: React.FC = () => {
             behavior: 'smooth'
           });
         }
-      }, 100);
+      }, 50);
     }
+  };
+
+  const handleReview = () => {
+    const extracted = extractFinalDiagnosis(caseText);
+    const diagnosis = extracted || "No diagnosis found after 'Final Diagnosis' marker.";
+    setFinalDiagnosis(diagnosis);
+    setReviewMode(true);
   };
 
   const addEntry = (listSetter: React.Dispatch<React.SetStateAction<CaseEntry[]>>, value: string) => {
@@ -99,26 +124,8 @@ const App: React.FC = () => {
     setList(items);
   };
 
-  const extractFinalDiagnosis = (text: string): string => {
-    // Robust extraction: find the last occurrence of "Final Diagnosis" and take everything after it
-    const parts = text.split(/final diagnosis/i);
-    if (parts.length > 1) {
-      const raw = parts[parts.length - 1].trim();
-      // Clean up leading colons, dashes, or boilerplate
-      return raw.replace(/^[:\-\s]+/, '').trim();
-    }
-    return '';
-  };
-
-  const handleReview = () => {
-    const extracted = extractFinalDiagnosis(caseText);
-    const diagnosis = extracted || "Diagnosis not found (Expected 'Final Diagnosis: ...')";
-    setFinalDiagnosis(diagnosis);
-    setReviewMode(true);
-  };
-
   const fetchTeachingData = useCallback(async () => {
-    if (!finalDiagnosis || finalDiagnosis.toLowerCase().includes("not found")) return;
+    if (!finalDiagnosis || finalDiagnosis.toLowerCase().includes("no diagnosis found")) return;
     
     setLoadingPoints(true);
     try {
@@ -345,7 +352,7 @@ The system will chunk the text logically for progressive disclosure."
                 <button 
                   onClick={nextParagraph}
                   className="w-16 h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all ring-8 ring-blue-50 group"
-                  title="Reveal next paragraph"
+                  title="Reveal next section of the case"
                 >
                   <i className="fas fa-arrow-down text-2xl group-hover:translate-y-1 transition-transform"></i>
                 </button>
