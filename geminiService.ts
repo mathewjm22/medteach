@@ -1,10 +1,16 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { CaseEntry, StudentLevel, TeachingPoint } from "./types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+// Fallback to empty string if process.env.API_KEY is not defined via Vite's define
+const API_KEY = process.env.API_KEY || '';
 
 export const getTeachingPoints = async (diagnosis: string, level: StudentLevel): Promise<TeachingPoint[]> => {
+  if (!API_KEY) {
+    console.error("Gemini API Key is missing. Please check your environment variables.");
+    return [];
+  }
+  
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: `As a medical educator, generate 5-6 high-yield teaching points for the diagnosis: "${diagnosis}". 
@@ -40,6 +46,9 @@ export const assessDifferentials = async (
   finalDiagnosis: string, 
   differentials: string[]
 ): Promise<number[]> => {
+  if (!API_KEY) return differentials.map(() => 0);
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: `The final diagnosis is "${finalDiagnosis}". 
