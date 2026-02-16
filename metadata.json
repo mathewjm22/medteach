@@ -1,0 +1,8 @@
+{
+  "name": "MedTeach Dashboard",
+  "description": "A medical education dashboard for clinical reasoning, inspired by Human Dx, featuring progressive disclosure of patient cases, prioritized differential diagnosis management, and AI-tailored teaching points based on learner levels.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
