@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { StudentLevel, CaseEntry, TabType, TeachingPoint } from './types';
@@ -37,11 +36,10 @@ const App: React.FC = () => {
   const startCase = () => {
     if (!caseText.trim()) return;
 
-    // Logic to chunk text: strictly 4-5 sentences per section for progressive disclosure
+    // Remove the solution block from what students see during the case
     const textWithoutSolution = caseText.replace(/Final Diagnosis[:\s]+[^\n]+/gi, '').trim();
     
-    // Split into sentences using a regex that handles common medical abbreviations better
-    // This looks for periods followed by a space and a capital letter, or end of line
+    // Split into sentences more robustly
     const sentences = textWithoutSolution.match(/[^.!?]+[.!?]+(?:\s+|$)/g) || [textWithoutSolution];
     
     const resultChunks: string[] = [];
@@ -92,12 +90,17 @@ const App: React.FC = () => {
   };
 
   const extractFinalDiagnosis = (text: string): string => {
-    // Search from bottom up for the final diagnosis marker
+    // Standardized match for "Final Diagnosis: [text]"
+    const match = text.match(/Final Diagnosis[:\s]+([^\n]+)/i);
+    if (match) return match[1].trim();
+
+    // Secondary fallback search from bottom up
     const lines = text.split('\n');
     for (let i = lines.length - 1; i >= 0; i--) {
       const line = lines[i].trim();
-      const match = line.match(/Final Diagnosis[:\s]+([^\n]+)/i);
-      if (match) return match[1].trim();
+      if (line.toLowerCase().startsWith('final diagnosis')) {
+        return line.replace(/final diagnosis[:\s]*/i, '').trim();
+      }
     }
     return '';
   };
